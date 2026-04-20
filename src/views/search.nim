@@ -52,7 +52,8 @@ proc renderMediaViewTabs*(query: Query; username: string): VNode =
     li(class=cls("gallery")):
       a(href=(base & "gallery")): text "Gallery"
 
-proc renderSearchTabs*(query: Query): VNode =
+
+proc renderSearchTabs*(query: Query; path=""): VNode =
   var q = query
   buildHtml(ul(class="tab")):
     li(class=query.getTabClass(tweets)):
@@ -112,6 +113,8 @@ proc renderTweetSearch*(results: Timeline; prefs: Prefs; path: string;
         renderProfileTabs(query, query.fromUser.join(","))
       if query.kind == media and query.fromUser.len == 1:
         renderMediaViewTabs(query, query.fromUser[0])
+      elif query.kind != media:
+        verbatim renderViewTabsHtml(query, path)
 
     if query.fromUser.len == 0 or query.kind == tweets:
       tdiv(class="timeline-header"):
@@ -119,6 +122,8 @@ proc renderTweetSearch*(results: Timeline; prefs: Prefs; path: string;
 
     if query.fromUser.len == 0:
       renderSearchTabs(query)
+    if query.fromUser.len == 0:
+      verbatim renderViewTabsHtml(query, path)
 
     renderTimelineTweets(results, prefs, path, pinned)
 

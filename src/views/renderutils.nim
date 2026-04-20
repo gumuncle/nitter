@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-import strutils, strformat
+import strutils, strformat, uri
 import karax/[karaxdsl, vdom, vstyles]
-import ".."/[types, utils]
+import ".."/[types, utils, query]
 
 const smallWebp* = "?name=small&format=webp"
 const mediumWebp* = "?name=medium&format=webp"
@@ -115,3 +115,23 @@ proc getTabClass*(query: Query; tab: QueryKind): string =
 proc getAvatarClass*(prefs: Prefs): string =
   if prefs.squareAvatars: "avatar"
   else: "avatar round"
+
+proc viewTabUrl*(q: Query; path, view: string): string =
+  if q.fromUser.len == 0:
+    var qq = q
+    qq.view = if view == "timeline": "" else: view
+    "?" & genQueryUrl(qq)
+  else:
+    let base = path.split('?')[0]
+    if view == "timeline": base
+    else: base & "?view=" & view
+
+proc renderViewTabsHtml*(q: Query; path: string): string =
+  let cur = if q.view.len > 0: q.view else: "timeline"
+  result = "<ul class=\"tab media-view-tabs\">"
+  for v in ["timeline", "grid", "gallery"]:
+    let cls = if cur == v: "tab-item active" else: "tab-item"
+    let url = viewTabUrl(q, path, v)
+    let label = if v == "timeline": "Timeline" elif v == "grid": "Grid" else: "Gallery"
+    result &= "<li class=\"" & cls & "\"><a href=\"" & url & "\">" & label & "</a></li>"
+  result &= "</ul>"

@@ -17,6 +17,7 @@ proc getQuery*(request: Request; tab, name: string; prefs: Prefs): Query =
   case tab
   of "with_replies":
     result = getReplyQuery(name)
+    result.view = if view in ["grid", "gallery"]: view else: ""
   of "media":
     result = getMediaQuery(name)
     result.view =
@@ -26,6 +27,7 @@ proc getQuery*(request: Request; tab, name: string; prefs: Prefs): Query =
     result = initQuery(params(request), name=name)
   else:
     result = Query(fromUser: @[name])
+    result.view = if view in ["grid", "gallery"]: view else: ""
 
 template skipIf[T](cond: bool; default; body: Future[T]): Future[T] =
   if cond:

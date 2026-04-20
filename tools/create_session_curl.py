@@ -153,7 +153,7 @@ def submit_username(session, flow_token, headers, guest_token, username):
 
 
 def submit_password(session, flow_token, headers, guest_token, password):
-    """Submit password and detect if 2FA is needed."""
+    """Submit password and detect if 2FA or success step is needed."""
     headers = headers.copy()
     headers["X-Guest-Token"] = guest_token
 
@@ -164,11 +164,35 @@ def submit_password(session, flow_token, headers, guest_token, password):
 
     flow_token, data = make_request(session, headers, flow_token, subtask, "Submitting password")
 
-    needs_2fa = any(s.get('subtask_id') == 'LoginTwoFactorAuthChallenge' for s in data.get('subtasks', []))
+    subtask_ids = [s.get('subtask_id') for s in data.get('subtasks', [])]
+    print(f"[*] Next subtasks: {subtask_ids}", file=sys.stderr)
+    needs_2fa = 'LoginTwoFactorAuthChallenge' in subtask_ids
+    needs_success = 'LoginSuccessSubtask' in subtask_ids
+
     if needs_2fa:
         print("[*] 2FA required", file=sys.stderr)
 
-    return flow_token, needs_2fa
+    return flow_token, needs_2fa, needs_success
+
+
+def submit_login_success(session, flow_token, headers, guest_token):
+    """Submit LoginSuccessSubtask to finalize login and set session cookies."""
+    cookies = get_cookies_dict(session)
+    print(f"[*] Cookies after password: {list(cookies.keys())}", file=sys.stderr)
+
+    headers = headers.copy()
+    headers.pop("X-Guest-Token", None)
+    headers["X-Twitter-Auth-Type"] = "OAuth2Session"
+    if cookies.get('ct0'):
+        headers["X-Csrf-Token"] = cookies['ct0']
+
+    subtask = {
+        "subtask_id": "LoginSuccessSubtask",
+        "open_account": {"link": "next_link"}
+    }
+
+    flow_token, _ = make_request(session, headers, flow_token, subtask, "Submitting login success")
+    return flow_token
 
 
 def submit_2fa(session, flow_token, headers, guest_token, totp_seed):
@@ -245,12 +269,14 @@ def login_and_get_cookies(username, password, totp_seed=None):
         flow_token, headers = init_flow(session, guest_token)
         flow_token = submit_js_instrumentation(session, flow_token, headers, guest_token)
         flow_token = submit_username(session, flow_token, headers, guest_token, username)
-        flow_token, needs_2fa = submit_password(session, flow_token, headers, guest_token, password)
+        flow_token, needs_2fa, needs_success = submit_password(session, flow_token, headers, guest_token, password)
 
         if needs_2fa:
             flow_token = submit_2fa(session, flow_token, headers, guest_token, totp_seed)
+            needs_success = True
 
-        complete_flow(session, flow_token, headers)
+        if not needs_success:
+            complete_flow(session, flow_token, headers)
 
         cookies_dict = get_cookies_dict(session)
         cookies_dict['username'] = username
